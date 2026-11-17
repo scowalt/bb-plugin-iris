@@ -12,7 +12,7 @@ import { CardRuntime, DECLARATION_TAGS, type Program, type RuntimeOptions, asIri
 import { didYouMean, collapse } from "./text";
 import { CONTENT_CHECKS } from "./content-checks";
 import { arrangement, normalizeKanban } from "./kanban";
-import { shapeHint } from "./shape-hints";
+import { readabilityHint, shapeHint } from "./shape-hints";
 
 export interface Issue {
   severity: "error" | "warning";
@@ -221,6 +221,8 @@ function walk(nodes: Node[], rt: CardRuntime, scope: Scope, depth: number, out: 
     if (hint) {
       const better = shapeHint(spec.name, props);
       if (better) hint(`<${spec.name}> ${better}`, n.start);
+      const readable = readabilityHint(spec.name, props);
+      if (readable) hint(`<${spec.name}> ${readable}`, n.start);
     }
     // A required prop that is written but comes out empty is usually a field name that the data
     // doesn't have (f.ship for f.ships): say so, with the fields it does have.

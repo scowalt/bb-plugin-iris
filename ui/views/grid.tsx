@@ -264,6 +264,8 @@ function Body(p: {
   const selectedKey = selected != null && typeof selected === "object" ? signature(selected) : null;
   const clickable = props.onRowClick != null || (bind != null && env.runtime.hasState(bind));
   const [active, setActive] = useState<number | null>(null);
+  // The row shown in full below, by its id in data.rows, so sorting or filtering never swaps in another row.
+  const [detailId, setDetailId] = useState<number | null>(null);
   const activate = (id: number) => {
     const row = data.rows[id];
     if (bind && env.runtime.hasState(bind)) env.runtime.setState(bind, row);
@@ -295,6 +297,8 @@ function Body(p: {
     } else return;
     e.preventDefault();
     setActive(k);
+    const moved = items[k];
+    setDetailId(moved?.kind === "row" ? moved.id : null);
     const el = scroller.current;
     if (el) {
       const y = headH + k * rowH;
@@ -310,7 +314,10 @@ function Body(p: {
   const height = Math.min(maxH, headH + (items.length ? items.length * rowH : 64) + 2);
   const gridStyle: CSSProperties = { gridTemplateColumns: template };
 
+  const detailRow = detailId != null && items.some((it) => it.kind === "row" && it.id === detailId) ? data.rows[detailId] : null;
+  const showDetail = detailRow != null && data.cols.some((c) => typeof detailRow[c.key] === "string" && (detailRow[c.key] as string).length > LONG_CELL);
   return (
+    <>
     <div
       ref={scroller}
       onScroll={onScroll}
@@ -383,7 +390,7 @@ function Body(p: {
                   role="row"
                   aria-selected={isSel || undefined}
                   style={style}
-                  onClick={() => (setActive(k), clickable && activate(it.id))}
+                  onClick={() => (setActive(k), setDetailId(it.id), clickable && activate(it.id))}
                   className={cn("grid border-b border-border/50", clickable ? "cursor-pointer hover:bg-state-hover" : "hover:bg-state-hover/50", isSel && "bg-state-active", active === k && "ring-1 ring-inset ring-foreground/30")}
                 >
                   {data.cols.map((c) => (
@@ -398,10 +405,12 @@ function Body(p: {
         )}
       </div>
     </div>
+    {showDetail && detailRow ? <RowDetail cols={data.cols} row={detailRow} onClose={() => setDetailId(null)} /> : null}
+    </>
   );
 }
 
-function GridCell({ col, row }: { col: GridColumn; row: Record<string, unknown> }) {
+function useGridContent(col: GridColumn, row: Record<string, unknown>): { content: ReactNode; color: string | undefined } {
   const env = useEnv();
   const value = row[col.key];
   let tone: unknown = col.tone;
@@ -418,13 +427,51 @@ function GridCell({ col, row }: { col: GridColumn; row: Record<string, unknown> 
   } catch (e) {
     content = <span className="text-destructive">{e instanceof Error ? e.message : String(e)}</span>;
   }
-  const color = toneColor(env.palette, tone) ?? undefined;
+  return { content, color: toneColor(env.palette, tone) ?? undefined };
+}
+
+function GridCell({ col, row }: { col: GridColumn; row: Record<string, unknown> }) {
+  const { content, color } = useGridContent(col, row);
   return (
     <div role="gridcell" className={cn("flex min-w-0 items-center px-2.5", col.align === "right" ? "justify-end" : col.align === "center" ? "justify-center" : "")} style={color ? { color } : undefined}>
       <span className="truncate" title={typeof content === "string" && content.length > 24 ? content : undefined}>
         {content}
       </span>
     </div>
+  );
+}
+
+/** Cells hold one line each; a value longer than this may be cut, so the selected row shows in full below. */
+const LONG_CELL = 24;
+
+/** The selected row in full, every column as a label and its value, wrapped. */
+function RowDetail({ cols, row, onClose }: { cols: GridColumn[]; row: Record<string, unknown>; onClose: () => void }) {
+  return (
+    <div className="mt-2 rounded-[10px] bg-muted/40 px-3 py-2 text-[13px] ring-1 ring-border" aria-label="The selected row in full">
+      <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
+        <span>Selected row</span>
+        <button type="button" onClick={onClose} className="iris-hit rounded-md px-1.5 py-0.5 hover:bg-state-hover hover:text-foreground" aria-label="Close the selected row">
+          <Glyph name="x" size={12} />
+        </button>
+      </div>
+      <dl className="grid gap-x-4 gap-y-1" style={{ gridTemplateColumns: "minmax(6rem, max-content) minmax(0, 1fr)" }}>
+        {cols.map((c) => (
+          <DetailField key={c.key} col={c} row={row} />
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function DetailField({ col, row }: { col: GridColumn; row: Record<string, unknown> }) {
+  const { content, color } = useGridContent(col, row);
+  return (
+    <>
+      <dt className="text-muted-foreground">{col.label}</dt>
+      <dd className="min-w-0 whitespace-pre-wrap leading-snug" style={{ overflowWrap: "anywhere", ...(color ? { color } : {}) }}>
+        {content}
+      </dd>
+    </>
   );
 }
 

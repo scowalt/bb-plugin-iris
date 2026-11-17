@@ -78,7 +78,7 @@ export function MetricView({ props }: ViewProps) {
           </span>
         ) : null}
       </div>
-      {str(props.note) ? <div className="mt-0.5 truncate text-xs text-muted-foreground">{str(props.note)}</div> : null}
+      {str(props.note) ? <div className="mt-0.5 break-words text-xs leading-snug text-muted-foreground">{str(props.note)}</div> : null}
       {trend && trend.length > 1 ? <SparkPath values={trend} color={tone ?? palette.accent} width={120} height={26} className="mt-1.5" /> : null}
     </div>
   );
@@ -176,8 +176,8 @@ function ItemRow({ item, index, extra }: { item: ItemData; index?: number; extra
       {index !== undefined ? <span className="w-5 shrink-0 pt-px text-right text-xs tabular-nums text-muted-foreground">{index}</span> : null}
       {item.icon ? <Glyph name={item.icon} size={16} color={color} className="mt-0.5" /> : item.tone ? <span className="mt-[7px] size-1.5 shrink-0 rounded-full" style={{ background: color }} /> : null}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13.5px]">{str(item.title)}</span>
-        {str(item.detail) ? <span className="block truncate text-xs text-muted-foreground">{str(item.detail)}</span> : null}
+        <span className="block break-words text-[13.5px]">{str(item.title)}</span>
+        {str(item.detail) ? <span className="mt-0.5 block break-words text-xs leading-snug text-muted-foreground">{str(item.detail)}</span> : null}
         {extra}
       </span>
       {item.badge != null ? <Chip tone={item.tone}>{str(item.badge)}</Chip> : null}

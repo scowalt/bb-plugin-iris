@@ -267,7 +267,7 @@ export const DATA = [
   component({
     name: "Table",
     group: "Data",
-    summary: "Rows and columns with sorting, search, paging and number formatting. Large data stays fast.",
+    summary: "Rows and columns with sorting, search, paging and number formatting. Large data stays fast. A column of sentences wraps; short values, IDs and paths stay on one line, and a row with a cut cell opens in full on a click (when the card sets no onRowClick). Keep cells to a phrase or a sentence, with sentences in one column at most; when each row needs a paragraph, use a List of Items with detail.",
     props: {
       rows: p.any("A list of objects, or a list of lists with columns", { required: true }),
       columns: p.list(

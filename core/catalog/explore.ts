@@ -7,7 +7,7 @@ export const DATA_EXPLORE = [
     name: "DataGrid",
     group: "Data",
     summary:
-      "An explorer for large results (CSV, JSON, SQL; 10,000+ rows scroll smoothly): sort, filter per column, search, group with counts and sums, a quick pivot, column stats, copy as CSV. Use Table for small, styled lists.",
+      "An explorer for large results (CSV, JSON, SQL; 10,000+ rows scroll smoothly): sort, filter per column, search, group with counts and sums, a quick pivot, column stats, copy as CSV. Each cell holds one line; a row the person clicks shows in full below the grid when it holds long text. Use Table for small, styled lists and for rows of sentences people read.",
     props: {
       rows: p.any("A list of objects, a list of lists (first row is the header), SQL output {columns, rows}, or CSV text; usually load(\"$BB_THREAD_STORAGE/q.csv\")", { required: true }),
       columns: p.list("Which columns and how; default: every key", "(string | {key, label?, format?, align?, width?, tone?: (value, row) => tone, render?: (value, row) => element})[]"),

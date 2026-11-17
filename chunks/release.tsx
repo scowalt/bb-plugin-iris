@@ -221,7 +221,7 @@ function ItemList({ items }: { items: ReleaseItem[] }) {
             <Glyph name={MARK[tone]} size={15} color={palette.tone[tone]} className={cn("mt-px", i.status?.running && tone === "info" && "animate-spin [animation-duration:2.4s] motion-reduce:animate-none")} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[13px]">{i.name}</div>
-              {i.detail ? <div className="truncate text-[11.5px] text-muted-foreground">{i.detail}</div> : null}
+              {i.detail ? <div className="break-words text-[11.5px] leading-snug text-muted-foreground">{i.detail}</div> : null}
             </div>
             {i.status ? (
               <span className="shrink-0 text-[11.5px]" style={{ color: tone === "neutral" ? "var(--muted-foreground)" : palette.tone[tone] }}>

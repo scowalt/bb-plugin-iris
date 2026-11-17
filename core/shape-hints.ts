@@ -4,6 +4,8 @@
 // names the component and a rewrite built from the card's own column names. Warnings only: a Table
 // is never wrong, just often not the best card.
 
+import { wrapsColumn } from "./table-layout";
+
 type Col = { key: string; words: string[] };
 
 const IMAGE = /\.(png|jpe?g|gif|webp|svg|avif)$/i;
@@ -118,6 +120,34 @@ function galleryHint(props: Record<string, unknown>): string | null {
   const tokens = new Set(texts.flatMap((t) => [...t.replace(/[-_.]/g, " ").matchAll(DEVICE)].map((m) => m[0].toLowerCase())));
   if (tokens.size >= 2 && words(new RegExp(DEVICE.source, "i")) >= Math.ceil(texts.length / 2))
     return `captions name devices, themes or locales: <Screens shots={[{ screen: "Home", column: "Dark", src }]} /> puts one row per screen and one column per device or theme, so a missing shot shows.`;
+  return null;
+}
+
+/** A cell this long is a paragraph: a row that tall stops reading as a table. */
+export const PARAGRAPH_CHARS = 240;
+
+/**
+ * A Table or DataGrid whose text the person can't read at a glance: sentences in a DataGrid (one
+ * line per cell, the rest only when the row is selected), or a paragraph in a Table cell.
+ */
+export function readabilityHint(name: string, props: Record<string, unknown>): string | null {
+  if (name !== "Table" && name !== "DataGrid") return null;
+  const rows = rowsOf(props);
+  if (!rows.length) return null;
+  // The columns the card shows: the ones it lists (minus those it renders or formats itself), else every key.
+  const specs = Array.isArray(props.columns) ? props.columns : null;
+  const keys = specs
+    ? specs.flatMap((c) => (typeof c === "string" ? [c] : c && typeof c === "object" && typeof (c as { key?: unknown }).key === "string" && (c as { render?: unknown }).render == null && (c as { format?: unknown }).format == null ? [(c as { key: string }).key] : []))
+    : [...new Set(rows.slice(0, 50).flatMap((r) => Object.keys(r)))];
+  if (name === "DataGrid") {
+    const prose = keys.filter((k) => wrapsColumn(rows.map((r) => r[k])));
+    if (!prose.length) return null;
+    return `${prose.map((k) => JSON.stringify(k)).join(", ")} ${prose.length === 1 ? "holds" : "hold"} sentences, and DataGrid cuts every cell to one line (the whole row shows only when the person selects it). For rows people read, use <Table>: it wraps sentences. Keep DataGrid for large data to filter, group and pivot.`;
+  }
+  for (const k of keys) {
+    const long = rows.slice(0, 50).find((r) => typeof r[k] === "string" && (r[k] as string).length > PARAGRAPH_CHARS && ((r[k] as string).match(/\s+/g)?.length ?? 0) >= 10);
+    if (long) return `column ${JSON.stringify(k)} holds a paragraph (${(long[k] as string).length} characters): a row that tall stops reading as a table. Keep cells to a phrase or a sentence; when each row needs a paragraph, use <List> with <Item title={...} detail={...} />, one item per row.`;
+  }
   return null;
 }
 

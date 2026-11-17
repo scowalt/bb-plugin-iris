@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { proseColumn, wrapsColumn } from "../../core/table-layout";
 import { betterWay } from "../../core/better";
 import { defaultCompare, isElementValue, isFnValue, isPendingValue, toText } from "../../core/evaluate";
 import { useEnv } from "../env";
@@ -23,6 +24,8 @@ interface Column {
   fluid?: boolean;
   /** Prose: wraps over as many lines as it needs instead of being cut to one. */
   wrap?: boolean;
+  /** Mostly sentences: the row's main text, which leads each block when rows stack. */
+  prose?: boolean;
 }
 
 function normalizeRows(rows: unknown, columns: unknown): { rows: Record<string, unknown>[]; cols: Column[] } {
@@ -72,10 +75,9 @@ function normalizeRows(rows: unknown, columns: unknown): { rows: Record<string, 
   // Sentences wrap; short values, IDs and paths stay on one line.
   for (const c of cols) {
     if (c.render || c.format || c.align !== "left") continue;
-    const sample = objects.slice(0, 50).map((r) => r[c.key]).filter((v) => typeof v === "string") as string[];
-    if (!sample.length) continue;
-    const prose = sample.filter((v) => /\s/.test(v.trim())).length / sample.length;
-    if (prose >= 0.5 && rawLength(c) >= 28) c.wrap = true;
+    const values = objects.slice(0, 50).map((r) => r[c.key]);
+    if (wrapsColumn(values)) c.wrap = true;
+    if (proseColumn(values)) c.prose = true;
   }
   return { rows: objects, cols };
 }
@@ -98,6 +100,7 @@ export function TableView({ props }: ViewProps) {
   // Narrow places (a phone, a side panel) get one block per row instead of columns that can't fit.
   const box = useRef<HTMLDivElement | null>(null);
   const table = useRef<HTMLTableElement | null>(null);
+  const stackedRef = useRef(false);
   const [width, setWidth] = useState(0);
   const [need, setNeed] = useState(0);
   useLayoutEffect(() => {
@@ -108,9 +111,22 @@ export function TableView({ props }: ViewProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [pending]);
+  // Rows the person opened in full, and rows with a cell cut to one line (measured after each layout).
+  // Keyed by the row's place in the data, which holds when bb rebuilds the row objects on a re-render.
+  const [open, setOpen] = useState<ReadonlySet<number>>(() => new Set());
+  const [cut, setCut] = useState<ReadonlySet<number>>(() => new Set());
   useLayoutEffect(() => {
-    if (table.current) setNeed(table.current.offsetWidth);
+    if (!table.current) return;
+    setNeed(table.current.offsetWidth);
+    const next = new Set<number>();
+    // Stacked rows show every value whole; the hidden table behind them is only measured.
+    if (!stackedRef.current)
+      table.current.querySelectorAll<HTMLTableRowElement>(":scope > tbody > tr").forEach((tr, k) => {
+        if ([...tr.cells].some((td) => td.scrollWidth > td.clientWidth + 1)) next.add(k);
+      });
+    setCut((prev) => (prev.size === next.size && [...next].every((k) => prev.has(k)) ? prev : next));
   });
+  const rowIndex = useMemo(() => new Map(rows.map((r, k) => [r, k])), [rows]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let out = q ? rows.filter((r) => cols.some((c) => toText(r[c.key]).toLowerCase().includes(q))) : rows;
@@ -128,6 +144,7 @@ export function TableView({ props }: ViewProps) {
   // Stack only when the columns really don't fit: the table, laid out at full width even while
   // hidden, reports how wide it has to be.
   const stacked = width > 0 && cols.length >= 3 && need > width + 4;
+  stackedRef.current = stacked;
   // Without prose columns, every column but the last hugs its content and the last takes the rest,
   // so short tables read as a tight grid instead of spreading their columns across the card.
   const compact = !cols.some((c) => c.wrap || c.fluid) && cols.length > 1;
@@ -160,13 +177,44 @@ export function TableView({ props }: ViewProps) {
             </tr>
           </thead>
           <tbody>
-            {shown.map((r, k) => (
-              <tr key={k} className={cn("group", clickable && "cursor-pointer")} onClick={clickable ? () => env.run(props.onRowClick, [r]) : undefined}>
-                {cols.map((c) => (
-                  <Cell key={c.key} col={c} row={r} />
-                ))}
-              </tr>
-            ))}
+            {shown.map((r, k) => {
+              const at = rowIndex.get(r) ?? -1;
+              const isOpen = open.has(at);
+              // A row with a cut cell opens in full on a click or Enter (and closes again), unless the card gave rows their own click.
+              const opens = !clickable && (isOpen || cut.has(k));
+              const toggle = () =>
+                setOpen((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(at)) next.delete(at);
+                  else next.add(at);
+                  return next;
+                });
+              return (
+                <tr
+                  key={k}
+                  className={cn("group", (clickable || opens) && "cursor-pointer", opens && "outline-none focus-visible:bg-state-hover")}
+                  onClick={
+                    clickable
+                      ? () => env.run(props.onRowClick, [r])
+                      : opens
+                        ? (e) => {
+                            // A link or button inside the row does its own thing, and selecting text isn't a click on the row.
+                            if ((e.target as HTMLElement).closest("a, button, input, select, textarea") || String(getSelection() ?? "")) return;
+                            toggle();
+                          }
+                        : undefined
+                  }
+                  onKeyDown={opens ? (e) => e.target === e.currentTarget && (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle()) : undefined}
+                  tabIndex={opens ? 0 : undefined}
+                  aria-expanded={opens ? isOpen : undefined}
+                  title={opens && !isOpen ? "Show the whole row" : undefined}
+                >
+                  {cols.map((c) => (
+                    <Cell key={c.key} col={c} row={r} open={isOpen} />
+                  ))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -206,17 +254,22 @@ function useCellContent(col: Column, row: Record<string, unknown>): { content: R
   return { content, color, value };
 }
 
-function Cell({ col, row }: { col: Column; row: Record<string, unknown> }) {
+function Cell({ col, row, open = false }: { col: Column; row: Record<string, unknown>; open?: boolean }) {
   const { content, color, value } = useCellContent(col, row);
   return (
     <td
-      title={!col.wrap && typeof value === "string" && value.length > 40 ? value : undefined}
+      title={!col.wrap && !open && typeof value === "string" && value.length > 40 ? value : undefined}
       className={cn(
-        col.wrap ? "whitespace-normal leading-snug" : col.fluid ? "w-full max-w-0 truncate" : "max-w-[28rem] truncate",
+        col.wrap ? "whitespace-normal leading-snug" : open ? cn("whitespace-normal leading-snug", col.fluid ? "w-full max-w-0" : "max-w-[28rem]") : col.fluid ? "w-full max-w-0 truncate" : "max-w-[28rem] truncate",
         "border-b border-border/60 px-2 align-top first:pl-0 last:pr-0 group-last:border-b-0 group-hover:bg-state-hover/50",
         col.align === "right" ? "text-right" : col.align === "center" ? "text-center" : "",
       )}
-      style={{ ...(color ? { color } : {}), ...(col.wrap ? { minWidth: col.fluid ? "14rem" : "9rem", maxWidth: col.fluid ? undefined : "24rem", textWrap: "pretty", overflowWrap: "anywhere" } : {}) }}
+      style={{
+        ...(color ? { color } : {}),
+        ...(col.wrap ? { minWidth: col.fluid ? "14rem" : "9rem", maxWidth: col.fluid ? undefined : "24rem", textWrap: "pretty", overflowWrap: "anywhere" } : {}),
+        // An opened row breaks a long value (a URL, a path) anywhere, so the table never grows past the card.
+        ...(open && !col.wrap ? { overflowWrap: "anywhere" } : {}),
+      }}
     >
       {content}
     </td>
@@ -225,7 +278,7 @@ function Cell({ col, row }: { col: Column; row: Record<string, unknown> }) {
 
 /** One block per row: the row's main text first, then every other column as a label and its value. */
 function StackedRows({ cols, rows, onRowClick }: { cols: Column[]; rows: Record<string, unknown>[]; onRowClick: ((r: Record<string, unknown>) => void) | null }) {
-  const lead = cols.find((c) => c.fluid) ?? cols.find((c) => c.wrap) ?? cols.find((c) => c.align === "left") ?? cols[0];
+  const lead = cols.find((c) => c.fluid) ?? cols.find((c) => c.prose) ?? cols.find((c) => c.align === "left") ?? cols[0];
   const index = cols[0] !== lead && cols[0].align === "right" && /^(#|no\.?|n|rank)$/i.test(cols[0].label) ? cols[0] : null;
   const rest = cols.filter((c) => c !== lead && c !== index);
   return (

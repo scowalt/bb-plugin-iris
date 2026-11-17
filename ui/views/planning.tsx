@@ -189,7 +189,7 @@ export function DecisionView({ props }: ViewProps) {
                   {toText(o.name)}
                   {k === 0 ? <Chip tone="good" className="shrink-0">Top pick</Chip> : null}
                 </div>
-                {str(o.note) ? <div className="truncate text-xs text-muted-foreground">{str(o.note)}</div> : null}
+                {str(o.note) ? <div className="break-words text-xs leading-snug text-muted-foreground">{str(o.note)}</div> : null}
               </div>
               <div className="h-1.5 w-28 overflow-hidden rounded-full bg-muted @max-lg/iris:w-16">
                 <div className="iris-bar h-full rounded-full" style={{ width: `${pct}%`, background: k === 0 ? env.palette.accent : "var(--muted-foreground)" }} />
@@ -489,8 +489,8 @@ export function StatusView({ props }: ViewProps) {
         return (
           <li key={k} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2">
             <div className="min-w-0">
-              <div className="truncate text-[13.5px] font-medium">{toText(i.name)}</div>
-              <div className="truncate text-xs text-muted-foreground">{[str(i.owner), str(i.due) ? `due ${str(i.due)}` : undefined, str(i.note)].filter(Boolean).join(", ")}</div>
+              <div className="break-words text-[13.5px] font-medium">{toText(i.name)}</div>
+              <div className="break-words text-xs leading-snug text-muted-foreground">{[str(i.owner), str(i.due) ? `due ${str(i.due)}` : undefined, str(i.note)].filter(Boolean).join(", ")}</div>
             </div>
             <Chip tone={tone}>{STATUS_LABEL[status] ?? status}</Chip>
             {progress != null ? (
