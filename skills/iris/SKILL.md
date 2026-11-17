@@ -20,6 +20,21 @@ Iris renders ```iris blocks in assistant replies as live UI in the person's bb t
 - `bb iris feed check <plugin>/<name>`: reads a plugin's Iris data feed the way a card does (load("plugin:<plugin>/<name>")) and prints whether it answers, its type, size, time and caching, and the fields a card can use. Exit 1 when a card couldn't read it.
 - `bb plugin rpc call iris pins.list|pins.all|pins.set|pins.ack|pins.remove --input-file <json>`: the same pins for any client, by threadId.
 
+## Cards people can read
+The person reads a card once, at a glance, often on a phone. Everything they need must be on the card: they can't open its source.
+- Lead with the answer in your first sentence; the card carries the evidence. One Card per idea, titled with what it shows.
+- Fit the component to the data before reaching for Table: before and after values are a Delta, checks with results are Acceptance, review notes are Findings, steps are Steps, a trend is a Chart. iris_check names a better fit when it sees one.
+- Tables hold values, not prose:
+  - A cell is a value, a label or a short phrase. At most one column holds sentences, and it goes last.
+  - A column of sentences wraps on its own; short values, IDs and paths stay on one line, and a row with a cut cell opens in full on a click (unless the card gives rows its own `onRowClick`). Don't set a `width` to squeeze a prose column.
+  - When each row needs a paragraph (a reason, a finding, a note), use `<List>` with `<Item title={...} detail={...} />`, one item per row (both wrap), or Findings for review notes. iris_check warns about a paragraph in a cell when the rows are written in the card.
+  - Numbers stay numbers so they right-align and format: `14210` with `format: "usd"`, not `"$14,210"`. Dates and IDs stay strings.
+  - Short sentence-case column labels ("What it does", not "WHAT_IT_DOES"). Keep a table under about 25 rows, or let it page.
+- DataGrid is for large data to sort, filter, group and pivot. It cuts every cell to one line; the row the person clicks or reaches with the arrow keys shows in full below the grid when it holds long text. Never put sentences in one (iris_check warns when the rows are written in the card).
+- Text stays short: a sentence or two around the data, Markdown inside `<Text>`. Notes that qualify the data go after it.
+- Phone width: cards fill the width, a `<Row>` wraps its items onto new lines when they run out of room, and a table that doesn't fit becomes one block per row. Avoid fixed widths.
+- Before sending: run iris_check (or `bb iris check`), read the outline as the person will see it, and fix every warning.
+
 ## File cards
 Write a card's markup to a file (for example `$BB_THREAD_STORAGE/status.iris`) and put `::iris{file="$BB_THREAD_STORAGE/status.iris"}` on its own line in a reply: the card draws inline and follows the file, re-read every 3 s while it shows. `iris_examples(["Recipes"])` has this pattern, a Variants picker, and setting a card's inputs.
 
