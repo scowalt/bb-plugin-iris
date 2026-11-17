@@ -346,7 +346,7 @@
   [data-iris-root] .iris-scroll-x > .iris-swatch {
     min-width: 36px;
   }
-  [data-iris-root] .iris-tools > button {
+  [data-iris-root] .iris-tools button[aria-haspopup] {
     width: 36px;
   }
   [data-iris-root] .iris-field {

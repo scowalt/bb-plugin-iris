@@ -2,7 +2,7 @@
 // state, saves that state per card, refreshes live cards, and draws the frame
 // with its toolbar (open in panel, source, copy, reset).
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { isPluginSource, loadPluginData } from "../core/plugin-data";
 import type { Parsed } from "../core/data";
 import { isBbSource } from "../core/bb-data";
@@ -19,6 +19,7 @@ import { usePalette, raisedSurface } from "./palette";
 import { alpha } from "./surface";
 import { pinFromCard, unpin, usePins } from "./pin-store";
 import { loadChunk } from "./chunks";
+import { CardMenu, type MenuItem } from "./card-menu";
 import type { PinsContract } from "../shared/pins-rpc";
 import { InlineError, renderNodes } from "./render";
 import { Glyph, cn } from "./views/kit";
@@ -243,7 +244,7 @@ export function IrisBlock(props: BlockProps) {
         className="iris-root @container/iris group/iris relative my-2 min-w-0 text-foreground"
         style={{ ["--iris-accent" as string]: palette.accent, ["--iris-spectrum" as string]: palette.accent, ["--iris-raised" as string]: raisedSurface(palette) }}
       >
-        {!rootCard && tools ? <div data-iris-snapshot-skip="" className="pointer-events-none absolute -top-1 right-0 z-[2] opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/iris:pointer-events-auto group-hover/iris:opacity-100">{tools}</div> : null}
+        {!rootCard && tools ? <div data-iris-snapshot-skip="" className="pointer-events-none absolute -top-1 right-0 z-[2] opacity-0 transition-opacity focus-within:pointer-events-auto focus-within:opacity-100 group-hover/iris:pointer-events-auto group-hover/iris:opacity-100 has-[[aria-expanded=true]]:pointer-events-auto has-[[aria-expanded=true]]:opacity-100 has-[[data-pinned]]:pointer-events-auto has-[[data-pinned]]:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">{tools}</div> : null}
         {showSource ? <SourceView source={source} onClose={() => setShowSource(false)} /> : body}
         {!streaming && program.error ? <InlineError error={new IrisError(program.error.message, program.error.start, program.error.end)} context="Syntax" /> : null}
         {!streaming && !program.error && program.incomplete ? <InlineError error={new IrisError("The block ended before every tag was closed")} /> : null}
@@ -305,8 +306,9 @@ function Toolbar(p: { source: string; language: string; showSource: boolean; onT
   // Pages and apps draw in a sandboxed frame the page can't read, so only cards copy as images.
   const imageable = !p.streaming && !p.showSource && !/-(app|react)$/.test(p.language);
   const [drawing, setDrawing] = useState(false);
-  const copyImage = (e: MouseEvent<HTMLButtonElement>) => {
-    const root = e.currentTarget.closest<HTMLElement>("[data-iris-root]");
+  const here = useRef<HTMLDivElement | null>(null);
+  const copyImage = () => {
+    const root = here.current?.closest<HTMLElement>("[data-iris-root]");
     if (!root || drawing) return;
     setDrawing(true);
     void copyCardImage(root, titleOf(p.source)).finally(() => setDrawing(false));
@@ -321,40 +323,32 @@ function Toolbar(p: { source: string; language: string; showSource: boolean; onT
     // A card's files and bb data stay on this machine; the playground draws it without them.
     if (/\bload\(/.test(p.source)) toast("Opened in the playground. Files and bb data this card loads stay here, so it shows them as pending.");
   };
-  const btn = "iris-hit grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-state-hover hover:text-foreground";
+  // Every action sits behind one quiet ⋯, keep it and look at it first, then take it elsewhere.
+  const items: MenuItem[] = [
+    ...(p.canReset ? [{ id: "reset", icon: "rotate-ccw", label: "Reset inputs", run: p.onReset }, "separator" as const] : []),
+    ...(pinnable ? [{ id: "pin", icon: pinned ? "pin-off" : "pin", label: pinned ? "Unpin" : "Pin beside the conversation", run: togglePin }] : []),
+    ...(p.threadId && !p.streaming ? [{ id: "panel", icon: "panel-right-open", label: "Open in the side panel", run: open }] : []),
+    "separator",
+    ...(imageable ? [{ id: "image", icon: drawing ? "loader-circle" : "image", label: "Copy as image", run: copyImage, disabled: drawing }] : []),
+    { id: "copy", icon: "copy", label: "Copy source", run: () => void copy() },
+    { id: "source", icon: "code", label: p.showSource ? "Hide source" : "Show source", run: p.onToggleSource },
+    "separator",
+    ...(shareable ? [{ id: "playground", icon: "external-link", label: "Open in the playground", run: openInPlayground }] : []),
+  ];
   return (
-    <div className="iris-tools flex shrink-0 items-center gap-0.5 rounded-full bg-card/80 p-0.5 opacity-60 backdrop-blur-sm transition-opacity hover:opacity-100 focus-within:opacity-100">
-      {p.canReset ? (
-        <button type="button" className={btn} onClick={p.onReset} title="Reset" aria-label="Reset inputs">
-          <Glyph name="rotate-ccw" size={14} />
-        </button>
-      ) : null}
-      <button type="button" className={cn(btn, p.showSource && "bg-state-active text-foreground")} onClick={p.onToggleSource} title="Source" aria-label="Show source" aria-pressed={p.showSource}>
-        <Glyph name="code" size={14} />
-      </button>
-      <button type="button" className={btn} onClick={copy} title="Copy" aria-label="Copy source">
-        <Glyph name="copy" size={14} />
-      </button>
-      {imageable ? (
-        <button type="button" className={btn} onClick={copyImage} disabled={drawing} title="Copy as image" aria-label="Copy the card as an image" aria-busy={drawing}>
-          <Glyph name={drawing ? "loader-circle" : "image"} size={14} className={drawing ? "animate-spin" : undefined} />
-        </button>
-      ) : null}
-      {pinnable ? (
-        <button type="button" className={cn(btn, pinned && "bg-state-active text-foreground")} onClick={togglePin} title={pinned ? "Unpin" : "Pin beside the conversation"} aria-label={pinned ? "Unpin this card" : "Pin this card beside the conversation"} aria-pressed={pinned}>
-          <Glyph name={pinned ? "pin-off" : "pin"} size={14} />
-        </button>
-      ) : null}
-      {shareable ? (
-        <button type="button" className={btn} onClick={openInPlayground} title="Open in the web playground" aria-label="Open in the web playground">
-          <Glyph name="external-link" size={14} />
-        </button>
-      ) : null}
-      {p.threadId && !p.streaming ? (
-        <button type="button" className={btn} onClick={open} title="Open in side panel" aria-label="Open in side panel">
-          <Glyph name="panel-right-open" size={14} />
-        </button>
-      ) : null}
+    <div ref={here} className="iris-tools flex shrink-0 items-center">
+      <CardMenu
+        items={items}
+        busy={drawing}
+        badge={
+          pinned ? (
+            <button type="button" data-pinned="" onClick={togglePin} title="Pinned beside the conversation. Click to unpin." aria-label="Pinned. Unpin this card" className="iris-hit inline-flex h-6 items-center gap-1 rounded-full bg-state-hover px-2 text-[11.5px] text-muted-foreground hover:text-foreground">
+              <Glyph name="pin" size={11} />
+              Pinned
+            </button>
+          ) : null
+        }
+      />
     </div>
   );
 }
