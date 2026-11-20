@@ -76,7 +76,7 @@
     "typescript": "^5.7.0",
     "us-atlas": "^3.0.1",
     "vaul": "^1.1.2",
-    "vitest": "^3.2.7",
+    "vitest": "^4.1.12",
     "world-atlas": "^2.0.2"
   },
   "description": "Live, interactive UI in bb chat: charts, tables, plans, diffs, test runs, pickers and small apps, drawn in your theme.",
