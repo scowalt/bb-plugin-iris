@@ -16,7 +16,7 @@ import { CATALOG } from "./core/catalog";
 import { rpcContract, type FileUrlResult, type FolderFilesResult } from "./shared/rpc";
 import { cardsContract, pinsContract } from "./shared/pins-rpc";
 import { alertSyntaxError, checkAlert } from "./core/pin-alerts";
-import { askLabels } from "./core/ask";
+import { ASK_TIMEOUTS, DEFAULT_ASK_TIMEOUT, askLabels, askTimeoutMs } from "./core/ask";
 import { cardsInMessage, isCardKey, pendingKey, pendingKeyFor, personInputs, planInputs, type CardRef } from "./core/cards";
 import { MAX_ALERT_WHEN, MAX_PINS, MAX_PIN_SOURCE, type Pin, type PinBy, type PinnedThread, alertText, cardFromFile, needsAttention, newestPinnedFirst, stepAlert, cardTitle, normalizePins, pinId, removePin, upsertPin, validPinId } from "./core/pins";
 import { failure, parseChangesTarget, parsePathFilter, parseThreadIds } from "./core/project";
@@ -112,6 +112,13 @@ export default async function plugin(bb: BbPluginApi) {
       label: "Web lookups",
       description: "Maps, place search and photos, fetched by Iris's server from OpenStreetMap, Photon and Wikimedia Commons and cached here. Off: Iris makes no web requests, maps show only their list of places and photos stay hidden.",
       default: true,
+    },
+    askTimeout: {
+      type: "select",
+      label: "Ask timeout",
+      description: "How long an iris_ask picker waits for your answer when the agent doesn't set its own timeout.",
+      options: Object.keys(ASK_TIMEOUTS),
+      default: DEFAULT_ASK_TIMEOUT,
     },
   });
   const initial = await settings.get();
@@ -897,7 +904,7 @@ export default async function plugin(bb: BbPluginApi) {
         source: { type: "string", maxLength: 100_000, description: "Iris markup for the picker" },
         html: { type: "string", maxLength: 400_000, description: "A full HTML page instead of markup; it answers with window.iris.submit(value)" },
         react: { type: "string", maxLength: 200_000, description: 'An iris-react module instead of markup; it answers with iris.submit(value) from "iris"' },
-        timeoutMinutes: { type: "integer", minimum: 1, maximum: 10_080, description: "How long to wait; default 60" },
+        timeoutMinutes: { type: "integer", minimum: 1, maximum: 10_080, description: "How long to wait; default the person's Ask timeout setting" },
       },
       required: ["title"],
       additionalProperties: false,
@@ -913,13 +920,14 @@ export default async function plugin(bb: BbPluginApi) {
         if (report.startsWith("Error")) return { content: [{ type: "text", text: `The picker app has errors; fix them and ask again.\n${report}` }], isError: true };
       }
       if (!ctx.threadId) return { content: [{ type: "text", text: "iris_ask works only inside a thread" }], isError: true };
+      const { askTimeout } = await settings.get();
       const result = await bb.ui.requestInput(
         {
           threadId: ctx.threadId,
           rendererId: "iris-ask",
           title,
           payload: source ? { title, source } : react ? { title, react } : { title, html: html ?? "" },
-          timeoutMs: (timeoutMinutes ?? 60) * 60_000,
+          timeoutMs: askTimeoutMs(askTimeout, timeoutMinutes),
           presentation: { label: askLabels(title) },
           describeSubmission: (value) => ({ title: askLabels(title).completed, detail: summarize(value) }),
         },

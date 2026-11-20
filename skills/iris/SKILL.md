@@ -48,5 +48,5 @@ Settings apply after `bb plugin reload iris`, in sessions that start afterwards.
 - load() and Snippet read only the thread's workspace and its thread storage, up to 8 MB.
 - ```iris-app pages and ```iris-react apps run sandboxed with no network; window.iris.insert/send/copy/submit are the only way out, and each works only from a click.
 - ```iris-react apps import only react, react-dom, lucide-react and "iris" (the kit: `bb iris docs React`). iris_check compiles them; compile and runtime errors show under the app with their line.
-- iris_ask waits up to 60 minutes by default (timeoutMinutes up to 7 days).
+- iris_ask waits as long as the person's Ask timeout setting (1 hour unless they changed it). Leave timeoutMinutes unset unless the question has a real deadline; it overrides the setting, up to 7 days.
 - Live cards re-read files every 2 s and plugin: sources every 10 s; a failed refresh keeps the last good value with a "retrying" note. load(path, {fallback: x}) returns x instead of an error.
