@@ -5,6 +5,8 @@
 
 <p align="center"><b>Agents answer in live cards you can use, not walls of text.</b></p>
 
+> This is [scowalt](https://github.com/scowalt)'s fork of [vburojevic/bb-plugin-iris](https://github.com/vburojevic/bb-plugin-iris), rebased onto upstream daily. Its only change is an **Ask timeout** setting: how long an `iris_ask` picker waits when the agent sets no timeout of its own (upstream always waits 1 hour).
+
 <p align="center">
 <a href="https://github.com/vburojevic/bb-plugin-iris/releases/latest"><img src="https://img.shields.io/github/v/release/vburojevic/bb-plugin-iris?style=flat-square&label=release&color=57606a" alt="Latest release"></a>
 <a href="https://getbb.app"><img src="https://img.shields.io/badge/bb-0.48%2B-57606a?style=flat-square" alt="Needs bb 0.48 or later"></a>
